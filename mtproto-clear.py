@@ -9,6 +9,7 @@ import sys
 from pathlib import Path
 
 from telethon import TelegramClient
+from telethon.tl.types import MessageActionHistoryClear
 
 
 def emit(payload: dict, exit_code: int = 0) -> None:
@@ -26,6 +27,11 @@ def read_config(path: Path) -> dict:
     if not isinstance(config.get("apiId"), int) or not config.get("apiHash"):
         emit({"ok": False, "code": "bad_config", "message": "MTProto API ID/API Hash 未配置"}, 2)
     return config
+
+
+def is_history_clear_marker(message) -> bool:
+    """Telegram keeps this internal service marker after clearing a dialog."""
+    return isinstance(getattr(message, "action", None), MessageActionHistoryClear)
 
 
 async def clear_history(config_path: Path, peer: str) -> None:
@@ -48,7 +54,7 @@ async def clear_history(config_path: Path, peer: str) -> None:
         batch_count = 0
         while True:
             messages = await client.get_messages(entity, limit=100)
-            message_ids = [int(message.id) for message in messages]
+            message_ids = [int(message.id) for message in messages if not is_history_clear_marker(message)]
             if not message_ids:
                 break
             await client.delete_messages(entity, message_ids, revoke=True)
@@ -63,8 +69,8 @@ async def clear_history(config_path: Path, peer: str) -> None:
                 }, 4)
             await asyncio.sleep(0.2)
 
-        remaining = await client.get_messages(entity, limit=1)
-        remaining_count = int(remaining.total or len(remaining))
+        remaining = await client.get_messages(entity, limit=100)
+        remaining_count = sum(1 for message in remaining if not is_history_clear_marker(message))
         if remaining_count > 0:
             emit({
                 "ok": False,

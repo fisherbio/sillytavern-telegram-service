@@ -22,8 +22,10 @@ if (!source.includes("'--peer', `@${botUsername}`")) throw new Error('Permanent 
 if (!source.includes('resetTelegramChatTracking(chatId)')) throw new Error('Telegram tracking is not reset after permanent clear');
 if (!source.includes('酒馆角色、会话、世界书和上下文均未删除')) throw new Error('Data-scope confirmation is missing');
 if (!helperSource.includes('client.delete_messages(entity, message_ids, revoke=True)')) throw new Error('Messages are not revoked in explicit batches');
-if (!helperSource.includes('remaining_count = int(remaining.total or len(remaining))')) throw new Error('Server-side verification is missing');
+if (!helperSource.includes('MessageActionHistoryClear')) throw new Error('Telegram history-clear service markers are not recognized');
+if (!helperSource.includes('if not is_history_clear_marker(message)')) throw new Error('History-clear service markers are not excluded from deletion');
+if (!helperSource.includes('remaining_count = sum(1 for message in remaining if not is_history_clear_marker(message))')) throw new Error('Server-side verification is missing');
 if (!helperSource.includes('"remainingCount": 0')) throw new Error('Verified zero remainder is not reported');
 if (helperSource.includes('client.delete_dialog(entity, revoke=True)')) throw new Error('Unverified bulk history deletion is still used');
 
-console.log('mtproto_clear_tests=12');
+console.log('mtproto_clear_tests=14');
