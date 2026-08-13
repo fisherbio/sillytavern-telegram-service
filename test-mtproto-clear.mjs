@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 
 const source = fs.readFileSync(process.argv[2], 'utf8');
+const helperSource = fs.readFileSync(process.argv[3], 'utf8');
 const parserStart = source.indexOf('function parseMtprotoResult');
 const parserEnd = source.indexOf('\n\nfunction resetTelegramChatTracking', parserStart);
 if (parserStart < 0 || parserEnd < 0) throw new Error('Unable to extract MTProto result parser');
@@ -20,5 +21,9 @@ if (!source.includes('execFileAsync(MTPROTO_PYTHON_PATH')) throw new Error('MTPr
 if (!source.includes("'--peer', `@${botUsername}`")) throw new Error('Permanent clear is not fixed to the current bot');
 if (!source.includes('resetTelegramChatTracking(chatId)')) throw new Error('Telegram tracking is not reset after permanent clear');
 if (!source.includes('酒馆角色、会话、世界书和上下文均未删除')) throw new Error('Data-scope confirmation is missing');
+if (!helperSource.includes('client.delete_messages(entity, message_ids, revoke=True)')) throw new Error('Messages are not revoked in explicit batches');
+if (!helperSource.includes('remaining_count = int(remaining.total or len(remaining))')) throw new Error('Server-side verification is missing');
+if (!helperSource.includes('"remainingCount": 0')) throw new Error('Verified zero remainder is not reported');
+if (helperSource.includes('client.delete_dialog(entity, revoke=True)')) throw new Error('Unverified bulk history deletion is still used');
 
-console.log('mtproto_clear_tests=8');
+console.log('mtproto_clear_tests=12');

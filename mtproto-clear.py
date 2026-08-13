@@ -44,11 +44,45 @@ async def clear_history(config_path: Path, peer: str) -> None:
         if getattr(me, "bot", False):
             emit({"ok": False, "code": "bot_session", "message": "清空全部历史必须使用用户账号会话"}, 3)
         entity = await client.get_entity(peer)
-        await client.delete_dialog(entity, revoke=True)
+        deleted_count = 0
+        batch_count = 0
+        while True:
+            messages = await client.get_messages(entity, limit=100)
+            message_ids = [int(message.id) for message in messages]
+            if not message_ids:
+                break
+            await client.delete_messages(entity, message_ids, revoke=True)
+            deleted_count += len(message_ids)
+            batch_count += 1
+            if batch_count >= 1_000:
+                emit({
+                    "ok": False,
+                    "code": "batch_limit",
+                    "message": "消息数量超过安全批次上限，清理未完全结束",
+                    "deletedCount": deleted_count,
+                }, 4)
+            await asyncio.sleep(0.2)
+
+        remaining = await client.get_messages(entity, limit=1)
+        remaining_count = int(remaining.total or len(remaining))
+        if remaining_count > 0:
+            emit({
+                "ok": False,
+                "code": "verification_failed",
+                "message": f"服务器仍保留 {remaining_count} 条消息",
+                "deletedCount": deleted_count,
+                "remainingCount": remaining_count,
+            }, 4)
+
+        # Remove the now-empty dialog from the user's list. Message revocation is
+        # handled explicitly above and verified before this cosmetic operation.
+        await client.delete_dialog(entity, revoke=False)
         emit({
             "ok": True,
             "peer": peer,
             "authorizedUserId": int(me.id),
+            "deletedCount": deleted_count,
+            "remainingCount": 0,
             "message": "Telegram 私聊全部历史已清空",
         })
     finally:

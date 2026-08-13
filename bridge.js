@@ -1615,10 +1615,10 @@ async function clearCompleteTelegramHistory(chatId) {
         resetTelegramChatTracking(chatId);
         await sendTrackedMessage(
             chatId,
-            '已彻底清除你与当前机器人的全部 Telegram 私聊历史。酒馆角色、会话、世界书和上下文均未删除。',
+            `已彻底清除你与当前机器人的全部 Telegram 私聊历史（服务器确认删除 ${Number(result.deletedCount) || 0} 条，剩余 0 条）。酒馆角色、会话、世界书和上下文均未删除。`,
             { reply_markup: mainMenuMarkup() },
         );
-        log(`Complete Telegram history cleared peer=@${botUsername}`);
+        log(`Complete Telegram history cleared peer=@${botUsername} deleted=${Number(result.deletedCount) || 0} remaining=0`);
     } catch (error) {
         let detail = error.message;
         try {

@@ -102,7 +102,7 @@ node test-streaming-output.mjs browser-index.js bridge.js
 node test-conversation-recovery.mjs browser-index.js
 node test-trim-preserves-prefix.mjs browser-index.js bridge.js
 node test-world-sync.mjs browser-index.js bridge.js
-node test-mtproto-clear.mjs bridge.js
+node test-mtproto-clear.mjs bridge.js mtproto-clear.py
 ./test-installer.sh
 ```
 
