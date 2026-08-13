@@ -1,0 +1,29 @@
+# Runtime secrets and local state
+config.json
+state.json
+bridge-config.js
+mtproto-config.json
+*.session
+*.session-journal
+*.key
+*.pem
+*.log
+
+# Dependencies and generated files
+node_modules/
+__pycache__/
+*.py[cod]
+.DS_Store
+coverage/
+dist/
+tmp/
+
+# Local deployment backups and temporary replacements
+backups/
+*.new-*
+*.bak
+*.backup
+
+# Editors
+.idea/
+.vscode/
