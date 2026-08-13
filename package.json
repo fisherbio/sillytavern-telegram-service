@@ -1,6 +1,6 @@
 {
   "name": "sillytavern-telegram-personal-bridge",
-  "version": "2.8.1",
+  "version": "2.8.2",
   "private": true,
   "description": "Local, single-user Telegram bridge for SillyTavern",
   "main": "bridge.js",

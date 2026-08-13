@@ -1565,6 +1565,17 @@ function sendToBrowser(payload) {
     return true;
 }
 
+function broadcastToBrowserClients(payload, except = null) {
+    const encoded = JSON.stringify(payload);
+    let delivered = 0;
+    for (const client of wss.clients) {
+        if (client === except || !client.authenticated || client.readyState !== WebSocket.OPEN) continue;
+        client.send(encoded);
+        delivered += 1;
+    }
+    return delivered;
+}
+
 function hasPendingMutationForAction(actionId) {
     return [...pendingMutations.values()].some(item => item.action?.id === actionId);
 }
@@ -1712,6 +1723,16 @@ wss.on('connection', socket => {
 
         if (data.type === 'generation_started' && data.chatId && data.requestId && streamingRepliesEnabled()) {
             beginGenerationStream(data);
+            return;
+        }
+
+        if (data.type === 'worlds_changed') {
+            const worlds = [...new Set((Array.isArray(data.worlds) ? data.worlds : [])
+                .filter(value => typeof value === 'string' && value.trim())
+                .map(value => value.trim()))].slice(0, 200);
+            if (socket === browserClient && browserStatus) browserStatus.worlds = worlds;
+            const delivered = broadcastToBrowserClients({ type: 'world_sync', worlds }, socket);
+            log(`World selection synchronized from ${JSON.stringify(socket.clientMode)} worlds=${JSON.stringify(worlds)} peers=${delivered}`);
             return;
         }
 

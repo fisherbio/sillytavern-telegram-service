@@ -3,6 +3,7 @@ import {
     deleteCharacterChatByName,
     Generate,
     getPastCharacterChats,
+    getRequestHeaders,
     openCharacterChat,
     selectCharacterById,
     sendMessageAsUser,
@@ -30,7 +31,7 @@ const NO_THINKING_VARIANT_ID = '__telegram_variant__:deepseek-v4-flash-0731:no-t
 const NO_THINKING_VARIANT_LABEL = 'deepseek-v4-flash-0731 · 非推理';
 const THINKING_BACKUP_STORAGE_KEY = 'st-telegram-safe:no-thinking-backup';
 const CONVERSATION_STORAGE_KEY = 'st-telegram-safe:last-conversation';
-const BRIDGE_CAPABILITIES = ['worlds-v1', 'auto-story-v1', 'chat-delete-v1'];
+const BRIDGE_CAPABILITIES = ['worlds-v1', 'worlds-sync-v1', 'auto-story-v1', 'chat-delete-v1'];
 const FRONTEND_RENDER_TIMEOUT_MS = 8_000;
 const IS_DEDICATED_CONTROLLER = new URLSearchParams(window.location.search).get('stTelegramController') === 'dedicated'
     || navigator.webdriver;
@@ -42,6 +43,7 @@ let generationBusy = false;
 let authenticated = false;
 let autoRun = null;
 let currentGenerationAbortController = null;
+let lastExternalWorldSyncAt = 0;
 
 function normalizePromptText(value) {
     if (typeof value === 'string') return value;
@@ -310,7 +312,69 @@ function sameStringSet(left, right) {
     return a.length === b.length && a.every((value, index) => value === b[index]);
 }
 
+function normalizeWorldSelection(values, names = world_names) {
+    const available = new Set((Array.isArray(names) ? names : []).filter(Boolean).map(String));
+    return [...new Set((Array.isArray(values) ? values : []).filter(Boolean).map(String))]
+        .filter(name => available.has(name));
+}
+
+function selectedWorldsFromSettingsPayload(payload, names = world_names) {
+    let settings = payload?.settings;
+    if (typeof settings === 'string') settings = JSON.parse(settings);
+    if (!settings || typeof settings !== 'object') return null;
+    const worldSettings = settings.world_info_settings;
+    if (!worldSettings || typeof worldSettings !== 'object') return null;
+    const stored = worldSettings.world_info?.globalSelect ?? worldSettings.world_info;
+    if (!Array.isArray(stored)) return [];
+    return normalizeWorldSelection(stored, names);
+}
+
+function applyLocalWorldSelection(values) {
+    const names = Array.isArray(world_names) ? world_names : [];
+    const next = normalizeWorldSelection(values, names);
+    if (sameStringSet(Array.isArray(selected_world_info) ? selected_world_info : [], next)) return next;
+    const active = new Set(next);
+    const selectedIndexes = names
+        .map((name, index) => name && active.has(name) ? String(index) : null)
+        .filter(index => index !== null);
+    $('#world_info').val(selectedIndexes).trigger('change.select2');
+    updateWorldInfoSettings(getWorldInfoSettings(), next);
+    return next;
+}
+
+async function syncWorldSelectionFromServer() {
+    // A peer tab can publish a newer selection just before SillyTavern's debounced
+    // settings save reaches the server. Do not overwrite that fresh state with the
+    // still-stale settings file.
+    if (Date.now() - lastExternalWorldSyncAt < 3_000) {
+        return normalizeWorldSelection(selected_world_info);
+    }
+    const response = await fetch('/api/settings/get', {
+        method: 'POST',
+        headers: getRequestHeaders(),
+        body: JSON.stringify({}),
+        cache: 'no-cache',
+    });
+    if (!response.ok) throw new Error(`读取酒馆设置失败（HTTP ${response.status}）`);
+    const worlds = selectedWorldsFromSettingsPayload(await response.json());
+    return worlds === null ? normalizeWorldSelection(selected_world_info) : applyLocalWorldSelection(worlds);
+}
+
+function announceWorldSelection() {
+    send({
+        type: 'worlds_changed',
+        worlds: normalizeWorldSelection(selected_world_info),
+    });
+}
+
+function handleWorldSync(data) {
+    lastExternalWorldSyncAt = Date.now();
+    const worlds = applyLocalWorldSelection(data.worlds);
+    console.info(`[${MODULE_NAME}] synchronized world selection: ${worlds.join(', ') || '(none)'}`);
+}
+
 async function applyWorldSelection(value) {
+    await syncWorldSelectionFromServer();
     const names = Array.isArray(world_names) ? world_names : [];
     const active = new Set(Array.isArray(selected_world_info) ? selected_world_info : []);
     const action = String(value?.action || 'toggle');
@@ -339,6 +403,7 @@ async function applyWorldSelection(value) {
     if (!sameStringSet(actual, next)) {
         throw new Error(`世界书状态校验失败（预期 ${next.length} 本，实际 ${actual.length} 本）`);
     }
+    announceWorldSelection();
     return { text, menu: worldMenuData(text) };
 }
 
@@ -1023,6 +1088,7 @@ async function handleMenuRequest(data) {
         }
 
         if (data.kind === 'worlds') {
+            await syncWorldSelectionFromServer();
             const menu = worldMenuData();
             send({
                 type: 'menu_response',
@@ -1490,11 +1556,16 @@ async function handleBridgeMessage(event) {
         authenticated = true;
         reconnectAttempt = 0;
         setStatus('已连接；Telegram 可用', 'green');
+        await syncWorldSelectionFromServer().catch(error => {
+            console.warn(`[${MODULE_NAME}] initial world synchronization failed`, error);
+        });
+        announceWorldSelection();
         send({ type: 'status', ...getCurrentStatus() });
         return;
     }
 
     if (!authenticated) return;
+    if (data.type === 'world_sync') handleWorldSync(data);
     if (data.type === 'user_message') await handleUserMessage(data);
     if (data.type === 'auto_start') await handleAutoStart(data);
     if (data.type === 'auto_control') handleAutoControl(data);
@@ -1504,7 +1575,12 @@ async function handleBridgeMessage(event) {
     if (data.type === 'chat_delete') await handleChatDelete(data);
     if (data.type === 'history_request') await handleHistoryRequest(data);
     if (data.type === 'message_mutation') await handleMessageMutation(data);
-    if (data.type === 'status_request') send({ type: 'status', chatId: data.chatId, ...getCurrentStatus() });
+    if (data.type === 'status_request') {
+        await syncWorldSelectionFromServer().catch(error => {
+            console.warn(`[${MODULE_NAME}] status world synchronization failed`, error);
+        });
+        send({ type: 'status', chatId: data.chatId, ...getCurrentStatus() });
+    }
 }
 
 function connect() {
@@ -1549,5 +1625,8 @@ jQuery(async () => {
     } catch (error) {
         console.warn(`[${MODULE_NAME}] startup conversation recovery unavailable`, error);
     }
+    $('#world_info').off('change.stTelegramWorldSync').on('change.stTelegramWorldSync', () => {
+        window.setTimeout(announceWorldSelection, 0);
+    });
     connect();
 });

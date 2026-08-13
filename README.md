@@ -6,6 +6,7 @@
 
 - 从 Telegram 与当前 SillyTavern 角色聊天
 - 选择角色、已有对话、模型和世界书
+- Telegram 与普通酒馆网页双向同步世界书选中状态
 - 新建、预览、撤回、截断和删除对话
 - `/wake` 与 `/stop` 管理 SillyTavern 服务
 - 自动剧情：用户人格与角色自动交替生成，支持轮数、单条字数、总字数、大纲、暂停和停止
@@ -99,6 +100,7 @@ node test-chat-delete.mjs bridge.js browser-index.js
 node test-streaming-output.mjs browser-index.js bridge.js
 node test-conversation-recovery.mjs browser-index.js
 node test-trim-preserves-prefix.mjs browser-index.js bridge.js
+node test-world-sync.mjs browser-index.js bridge.js
 ./test-installer.sh
 ```
 
