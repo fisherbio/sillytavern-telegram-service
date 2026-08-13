@@ -26,6 +26,6 @@ if (!helperSource.includes('MessageActionHistoryClear')) throw new Error('Telegr
 if (!helperSource.includes('if not is_history_clear_marker(message)')) throw new Error('History-clear service markers are not excluded from deletion');
 if (!helperSource.includes('remaining_count = sum(1 for message in remaining if not is_history_clear_marker(message))')) throw new Error('Server-side verification is missing');
 if (!helperSource.includes('"remainingCount": 0')) throw new Error('Verified zero remainder is not reported');
-if (helperSource.includes('client.delete_dialog(entity, revoke=True)')) throw new Error('Unverified bulk history deletion is still used');
+if (helperSource.includes('client.delete_dialog(')) throw new Error('Full clear must not hide the empty bot dialog');
 
 console.log('mtproto_clear_tests=14');

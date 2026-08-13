@@ -80,9 +80,6 @@ async def clear_history(config_path: Path, peer: str) -> None:
                 "remainingCount": remaining_count,
             }, 4)
 
-        # Remove the now-empty dialog from the user's list. Message revocation is
-        # handled explicitly above and verified before this cosmetic operation.
-        await client.delete_dialog(entity, revoke=False)
         emit({
             "ok": True,
             "peer": peer,
