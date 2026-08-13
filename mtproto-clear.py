@@ -31,7 +31,10 @@ def read_config(path: Path) -> dict:
 async def clear_history(config_path: Path, peer: str) -> None:
     config = read_config(config_path)
     session_path = Path(os.path.expanduser(config.get("sessionPath") or str(config_path.with_suffix(".session"))))
+    session_file = session_path if session_path.suffix == ".session" else Path(f"{session_path}.session")
     session_path.parent.mkdir(parents=True, exist_ok=True)
+    if session_file.exists():
+        os.chmod(session_file, 0o600)
     client = TelegramClient(str(session_path), config["apiId"], config["apiHash"])
     await client.connect()
     try:
@@ -50,6 +53,8 @@ async def clear_history(config_path: Path, peer: str) -> None:
         })
     finally:
         await client.disconnect()
+        if session_file.exists():
+            os.chmod(session_file, 0o600)
 
 
 def main() -> None:

@@ -131,6 +131,9 @@ install_bridge_files() {
     install -m 0644 "$SCRIPT_DIR/browser-keeper.js" "$APP_DIR/browser-keeper.js"
     install -m 0644 "$SCRIPT_DIR/package.json" "$APP_DIR/package.json"
     install -m 0644 "$SCRIPT_DIR/package-lock.json" "$APP_DIR/package-lock.json"
+    install -m 0755 "$SCRIPT_DIR/mtproto-authorize.py" "$APP_DIR/mtproto-authorize.py"
+    install -m 0755 "$SCRIPT_DIR/mtproto-clear.py" "$APP_DIR/mtproto-clear.py"
+    install -m 0644 "$SCRIPT_DIR/mtproto-config.example.json" "$APP_DIR/mtproto-config.example.json"
 
     install -m 0644 "$SCRIPT_DIR/browser-index.js" "$EXTENSION_DIR/index.js"
     install -m 0644 "$SCRIPT_DIR/manifest.json" "$EXTENSION_DIR/manifest.json"

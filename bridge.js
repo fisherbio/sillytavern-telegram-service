@@ -11,6 +11,9 @@ const { WebSocket, WebSocketServer } = require('ws');
 const APP_DIR = __dirname;
 const CONFIG_PATH = path.join(APP_DIR, 'config.json');
 const STATE_PATH = path.join(APP_DIR, 'state.json');
+const MTPROTO_CONFIG_PATH = path.join(APP_DIR, 'mtproto-config.json');
+const MTPROTO_CLEAR_SCRIPT_PATH = path.join(APP_DIR, 'mtproto-clear.py');
+const MTPROTO_PYTHON_PATH = path.join(APP_DIR, '.venv-mtproto', 'bin', 'python');
 const MAX_TELEGRAM_CODEPOINTS = 3_800;
 const MAX_GENERATION_MS = 20 * 60 * 1_000;
 const REPLY_ACTION_TTL_MS = 24 * 60 * 60 * 1_000;
@@ -343,6 +346,7 @@ const clearingChats = new Set();
 const pendingAutoConfigs = new Map();
 let autoSession = null;
 let tavernControlPromise = null;
+let botUsername = '';
 
 function browserClientPriority(socket) {
     return Number(socket?.controllerPriority) || 0;
@@ -1135,6 +1139,7 @@ function mainMenuMarkup() {
                 { text: '📜 历史预览', callback_data: 'act:history' },
                 { text: '🧹 清理近48小时', callback_data: 'act:clear' },
             ],
+            [{ text: '⚠️ 彻底清屏（全部历史）', callback_data: 'act:clear_all' }],
         ],
     };
 }
@@ -1527,6 +1532,103 @@ async function clearTelegramScreen(chatId) {
             `已清理机器人记录的近 48 小时消息（处理 ${result.processed} 条）。Telegram 禁止机器人删除超过 48 小时的消息；酒馆角色、会话和上下文均未删除。${suffix}`,
             { reply_markup: mainMenuMarkup() },
         );
+    } finally {
+        clearingChats.delete(chatKey);
+    }
+}
+
+function completeClearConfirmationMarkup() {
+    return {
+        inline_keyboard: [[
+            { text: '确认永久删除全部历史', callback_data: 'act:clear_all_confirm' },
+            { text: '取消', callback_data: 'act:clear_all_cancel' },
+        ]],
+    };
+}
+
+async function sendCompleteClearConfirmation(chatId, messageId = null) {
+    const text = '⚠️ 彻底清屏会使用你的个人 Telegram 账号，永久删除你与当前机器人的全部私聊历史，包括超过 48 小时的消息。\n\n此操作不可恢复，但不会删除酒馆中的角色卡、对话、世界书或上下文。';
+    const options = { reply_markup: completeClearConfirmationMarkup() };
+    if (messageId) {
+        await bot.editMessageText(text, { chat_id: chatId, message_id: messageId, ...options });
+    } else {
+        await sendTrackedMessage(chatId, text, options);
+    }
+}
+
+function parseMtprotoResult(stdout) {
+    const lines = String(stdout || '').split(/\r?\n/u).map(line => line.trim()).filter(Boolean);
+    for (let index = lines.length - 1; index >= 0; index -= 1) {
+        try {
+            const result = JSON.parse(lines[index]);
+            if (result && typeof result === 'object') return result;
+        } catch {
+            // Ignore non-JSON diagnostic output and continue backwards.
+        }
+    }
+    throw new Error('MTProto 清理工具没有返回有效结果');
+}
+
+function resetTelegramChatTracking(chatId) {
+    const chatKey = Number(chatId);
+    state.telegramMessageIds = (Array.isArray(state.telegramMessageIds) ? state.telegramMessageIds : [])
+        .filter(item => Number(item.chatId) !== chatKey);
+    persistState();
+    for (const action of [...replyActions.values()]) {
+        if (Number(action.chatId) === chatKey) consumeReplyAction(action);
+    }
+    pendingTrimByChat.delete(chatKey);
+    pendingAutoConfigs.delete(chatKey);
+    for (const [id, session] of menuSessions) {
+        if (Number(session.chatId) === chatKey) menuSessions.delete(id);
+    }
+    for (const [id, session] of historySessions) {
+        if (Number(session.chatId) === chatKey) historySessions.delete(id);
+    }
+}
+
+async function clearCompleteTelegramHistory(chatId) {
+    const chatKey = Number(chatId);
+    if (clearingChats.has(chatKey)) {
+        await sendPlain(chatId, '另一个清屏操作正在进行，请勿重复点击。');
+        return;
+    }
+    if (activeRequest) {
+        await sendPlain(chatId, '当前仍在生成回复，请等待结束后再彻底清屏。');
+        return;
+    }
+    if (!botUsername || !fs.existsSync(MTPROTO_CONFIG_PATH) || !fs.existsSync(MTPROTO_CLEAR_SCRIPT_PATH)
+        || !fs.existsSync(MTPROTO_PYTHON_PATH)) {
+        await sendPlain(chatId, '彻底清屏尚未完成本机配置，普通清屏仍可使用。');
+        return;
+    }
+
+    clearingChats.add(chatKey);
+    try {
+        const { stdout } = await execFileAsync(MTPROTO_PYTHON_PATH, [
+            MTPROTO_CLEAR_SCRIPT_PATH,
+            '--config', MTPROTO_CONFIG_PATH,
+            '--peer', `@${botUsername}`,
+        ], { timeout: 120_000, maxBuffer: 1024 * 1024 });
+        const result = parseMtprotoResult(stdout);
+        if (!result.ok) throw new Error(result.message || result.code || 'MTProto 清理失败');
+        resetTelegramChatTracking(chatId);
+        await sendTrackedMessage(
+            chatId,
+            '已彻底清除你与当前机器人的全部 Telegram 私聊历史。酒馆角色、会话、世界书和上下文均未删除。',
+            { reply_markup: mainMenuMarkup() },
+        );
+        log(`Complete Telegram history cleared peer=@${botUsername}`);
+    } catch (error) {
+        let detail = error.message;
+        try {
+            const result = parseMtprotoResult(error.stdout);
+            detail = result.message || result.code || detail;
+        } catch {
+            // Keep the process error when the helper produced no structured output.
+        }
+        log(`complete Telegram clear failed: ${detail}`);
+        await sendTrackedMessage(chatId, `彻底清屏失败：${detail}`, { reply_markup: mainMenuMarkup() });
     } finally {
         clearingChats.delete(chatKey);
     }
@@ -2131,6 +2233,10 @@ bot.on('message', async msg => {
         await clearTelegramScreen(chatId);
         return;
     }
+    if (command === 'clearall') {
+        await sendCompleteClearConfirmation(chatId);
+        return;
+    }
     if (command === 'status') {
         const ready = await isTavernHttpReady();
         if (!ready) {
@@ -2294,6 +2400,16 @@ bot.on('callback_query', async query => {
             else if (!sendToBrowser({ type: 'new_chat', chatId })) await sendPlain(chatId, '酒馆浏览器尚未连接。');
         } else if (action === 'clear' || action === 'clear_confirm') {
             await clearTelegramScreen(chatId);
+        } else if (action === 'clear_all') {
+            await sendCompleteClearConfirmation(chatId, messageId);
+        } else if (action === 'clear_all_cancel') {
+            await bot.editMessageText('已取消彻底清屏，历史消息没有改变。', {
+                chat_id: chatId,
+                message_id: messageId,
+                reply_markup: mainMenuMarkup(),
+            }).catch(error => log(`complete clear cancellation edit failed: ${error.message}`));
+        } else if (action === 'clear_all_confirm') {
+            await clearCompleteTelegramHistory(chatId);
         }
         return;
     }
@@ -2422,6 +2538,7 @@ bot.on('polling_error', error => log(`Telegram polling error: ${error.message}`)
 
 async function start() {
     const me = await bot.getMe();
+    botUsername = String(me.username || '');
     await bot.deleteWebhook({ drop_pending_updates: true });
     await bot.setMyCommands([
         { command: 'menu', description: '打开酒馆控制菜单' },
@@ -2441,6 +2558,7 @@ async function start() {
         { command: 'undo', description: '撤回酒馆中最后一条助手回复' },
         { command: 'new', description: '新建当前角色的聊天' },
         { command: 'clear', description: '清理近48小时消息' },
+        { command: 'clearall', description: '彻底清除全部私聊历史' },
         { command: 'status', description: '查看酒馆连接状态' },
         { command: 'help', description: '查看使用说明' },
     ]);

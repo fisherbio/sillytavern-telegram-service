@@ -11,6 +11,7 @@
 - `/wake` 与 `/stop` 管理 SillyTavern 服务
 - 自动剧情：用户人格与角色自动交替生成，支持轮数、单条字数、总字数、大纲、暂停和停止
 - 稳定显示或流式显示；稳定显示可规避 Telegram 消息持续增长导致的自动下滑
+- 普通清屏删除近 48 小时消息；可选 MTProto 用户授权支持二次确认后的完整历史清理
 - 检测角色卡前端输出并把酒馆实际渲染界面截图发送到 Telegram
 - 单用户 ID 白名单、一次性配对、本机 WebSocket 与共享密钥认证
 
@@ -101,6 +102,7 @@ node test-streaming-output.mjs browser-index.js bridge.js
 node test-conversation-recovery.mjs browser-index.js
 node test-trim-preserves-prefix.mjs browser-index.js bridge.js
 node test-world-sync.mjs browser-index.js bridge.js
+node test-mtproto-clear.mjs bridge.js
 ./test-installer.sh
 ```
 
@@ -114,4 +116,5 @@ node test-world-sync.mjs browser-index.js bridge.js
 - `/stream`：稳定或流式显示
 - `/characters`、`/chats`、`/models`、`/worlds`
 - `/history`、`/undo`、`/new`、`/clear`
+- `/clearall`：二次确认后彻底删除与当前机器人的全部 Telegram 私聊历史
 - `/wake`、`/stop`、`/status`

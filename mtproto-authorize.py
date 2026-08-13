@@ -3,6 +3,7 @@
 
 import argparse
 import asyncio
+import getpass
 import json
 import os
 from pathlib import Path
@@ -21,6 +22,7 @@ def read_config(path: Path) -> dict:
 async def authorize(config_path: Path, qr_path: Path) -> None:
     config = read_config(config_path)
     session_path = Path(os.path.expanduser(config.get("sessionPath") or str(config_path.with_suffix(".session"))))
+    session_file = session_path if session_path.suffix == ".session" else Path(f"{session_path}.session")
     session_path.parent.mkdir(parents=True, exist_ok=True)
     client = TelegramClient(str(session_path), config["apiId"], config["apiHash"])
     await client.connect()
@@ -41,10 +43,20 @@ async def authorize(config_path: Path, qr_path: Path) -> None:
             except asyncio.TimeoutError:
                 continue
             except errors.SessionPasswordNeededError:
-                print(json.dumps({"ok": False, "code": "password_needed"}), flush=True)
+                password = getpass.getpass("请输入 Telegram 两步验证密码（输入不会显示）：")
+                try:
+                    user = await client.sign_in(password=password)
+                except errors.PasswordHashInvalidError:
+                    print(json.dumps({"ok": False, "code": "password_invalid"}), flush=True)
+                    return
+                finally:
+                    password = ""
+                print(json.dumps({"ok": True, "userId": int(user.id), "twoFactor": True}), flush=True)
                 return
     finally:
         await client.disconnect()
+        if session_file.exists():
+            os.chmod(session_file, 0o600)
 
 
 def main() -> None:
