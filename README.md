@@ -21,9 +21,11 @@
 - `manifest.json`、`settings.html`、`style.css`：SillyTavern 扩展文件
 - `bridge-config.example.js`：浏览器扩展连接配置模板
 - `config.example.json`：Telegram 桥接配置模板
-- `com.local.*.plist`：macOS LaunchAgent 模板，其中 `__HOME__` 与 `__NODE__` 需在安装时替换
+- `com.local.*.plist`：macOS LaunchAgent 模板，由安装脚本填入本机目录、用户和 Node.js 路径
 - `test-*.mjs`：配置、自动剧情、对话删除、流式输出与历史安全相关测试
 - `mtproto-*.py`：可选的 Telegram 用户会话授权与完整私聊清理工具
+- `install.sh`：新 Mac 的交互式一键部署和幂等更新脚本
+- `status.sh`：检查三个 LaunchAgent、SillyTavern HTTP 和本机桥接端口
 
 ## 安全说明
 
@@ -37,7 +39,44 @@
 
 仓库中的所有配置均为不含真实凭据的模板。首次部署应使用密码学安全随机值生成 `bridgeSecret`，并保证 `config.json` 与 `bridge-config.js` 中的值完全一致。
 
-## 部署概览
+## 新 Mac 一条命令部署
+
+前提：新 Mac 已登录你的 GitHub 账号并配置好访问 Private Repo 的 SSH Key；你还需要从 BotFather 取得 Telegram Bot Token。
+
+打开“终端”，整行复制并执行：
+
+```bash
+if [ -d "$HOME/sillytavern-telegram-service/.git" ]; then git -C "$HOME/sillytavern-telegram-service" pull --ff-only; else git clone git@github.com:fisherbio/sillytavern-telegram-service.git "$HOME/sillytavern-telegram-service"; fi && "$HOME/sillytavern-telegram-service/install.sh"
+```
+
+脚本会自动完成：
+
+- 检查 macOS、Node.js 20+ 和 Google Chrome；缺少时询问是否通过 Homebrew 安装
+- 没有 SillyTavern 时，从官方仓库的 `release` 分支安装到 `~/SillyTavern`
+- 安装桥接依赖并部署浏览器扩展
+- 隐藏输入 Telegram Bot Token，自动生成 256 位本机桥接密钥和一次性配对码
+- 生成并加载三个 LaunchAgent，启动服务并等待健康检查
+- 重复执行时更新程序，但保留 `config.json`、`state.json`、Telegram 配对和密钥
+
+部署结束会显示一次性配对码。向机器人发送：
+
+```text
+/start 显示的配对码
+```
+
+如需更换 Bot Token 或重新配对：
+
+```bash
+~/sillytavern-telegram-service/install.sh --reconfigure
+```
+
+检查运行状态：
+
+```bash
+~/sillytavern-telegram-service/status.sh
+```
+
+## 自动部署的目录
 
 默认部署布局：
 
@@ -48,14 +87,7 @@
 ~/Library/LaunchAgents/
 ```
 
-1. 安装 Node.js 20+、SillyTavern 和 Google Chrome。
-2. 将本仓库的桥接文件复制到 `~/Library/Application Support/SillyTavernTelegramBridge/`，运行 `npm ci --omit=dev`。
-3. 从 `config.example.json` 创建 `config.json`，写入 Bot Token、配对码与随机桥接密钥，权限设置为 `600`。
-4. 将 `browser-index.js` 复制为扩展目录的 `index.js`，并复制 `manifest.json`、`settings.html`、`style.css`。
-5. 从 `bridge-config.example.js` 创建扩展目录的 `bridge-config.js`，写入与 `config.json` 一致的桥接密钥。
-6. 替换三个 plist 中的 `__HOME__`、`__NODE__` 与 `__USER__`（如存在），复制到 `~/Library/LaunchAgents/` 后使用 `launchctl bootstrap` 加载。
-
-建议每次更新前备份已部署的 `bridge.js`、扩展 `index.js` 和 `manifest.json`，完成语法检查后再原子替换并重启两个桥接 LaunchAgent。
+`install.sh` 可重复执行。运行时配置和对话状态位于 Application Support 目录，不会因代码更新而被覆盖；SillyTavern 的角色卡、聊天记录和世界书仍保存在 `~/SillyTavern/data/`，也不会上传到本仓库。
 
 ## 验证
 
@@ -67,6 +99,7 @@ node test-chat-delete.mjs bridge.js browser-index.js
 node test-streaming-output.mjs browser-index.js bridge.js
 node test-conversation-recovery.mjs browser-index.js
 node test-trim-preserves-prefix.mjs browser-index.js bridge.js
+./test-installer.sh
 ```
 
 部分诊断或上游模型测试依赖本机 SillyTavern 数据和私有 API 配置，不属于离线测试。

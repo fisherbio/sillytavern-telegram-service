@@ -7,10 +7,10 @@
     <key>ProgramArguments</key>
     <array>
         <string>__NODE__</string>
-        <string>__HOME__/SillyTavern/server.js</string>
+        <string>__SILLYTAVERN__/server.js</string>
     </array>
     <key>WorkingDirectory</key>
-    <string>__HOME__/SillyTavern</string>
+    <string>__SILLYTAVERN__</string>
     <key>EnvironmentVariables</key>
     <dict>
         <key>HOME</key>
