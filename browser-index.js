@@ -12,6 +12,7 @@ import {
 } from '../../../../script.js';
 import { yaml } from '../../../../lib.js';
 import { model_list } from '../../../openai.js';
+import { getPresetManager } from '../../../preset-manager.js';
 import { allowScopedScripts } from '../../regex/engine.js';
 import {
     getWorldInfoSettings,
@@ -262,6 +263,14 @@ function closeSocket() {
     }
 }
 
+function currentPresetName() {
+    try {
+        return String(getPresetManager()?.getSelectedPresetName?.() || '').trim();
+    } catch {
+        return '';
+    }
+}
+
 function getCurrentStatus() {
     const context = SillyTavern.getContext();
     const character = context.characters?.[context.characterId]?.name
@@ -271,6 +280,7 @@ function getCurrentStatus() {
         character,
         chat: context.chatId || '未选择对话',
         model: context.getChatCompletionModel?.() || '未知',
+        preset: currentPresetName() || '未选择',
         source: context.chatCompletionSettings?.chat_completion_source || context.mainApi || '未知',
         worlds: Array.isArray(selected_world_info) ? [...selected_world_info] : [],
         worldCount: Array.isArray(world_names) ? world_names.length : 0,
@@ -978,6 +988,24 @@ function modelMenuItems() {
     return { source, current: noThinkingSelected ? NO_THINKING_VARIANT_LABEL : current, items };
 }
 
+function presetMenuItems() {
+    const context = SillyTavern.getContext();
+    const manager = getPresetManager();
+    if (!manager) throw new Error(`当前接口 ${context.mainApi || '未知'} 没有可用的预设管理器`);
+    const current = currentPresetName();
+    const names = [...new Set((manager.getAllPresets?.() || [])
+        .map(name => String(name || '').trim())
+        .filter(Boolean))];
+    return {
+        api: context.mainApi || '未知',
+        current: current || '未选择',
+        items: names.map(name => ({
+            value: name,
+            label: `${name === current ? '✓ ' : ''}${name}`,
+        })),
+    };
+}
+
 function buildHistoryPage(requestedPage = 0, pageSize = 6) {
     const context = SillyTavern.getContext();
     const messages = Array.isArray(context.chat)
@@ -1090,6 +1118,18 @@ async function handleMenuRequest(data) {
             return;
         }
 
+        if (data.kind === 'presets') {
+            const { api, current, items } = presetMenuItems();
+            send({
+                type: 'menu_response',
+                kind: data.kind,
+                chatId: data.chatId,
+                title: `选择预设 · ${api}\n当前：${current}`,
+                items,
+            });
+            return;
+        }
+
         if (data.kind === 'worlds') {
             await syncWorldSelectionFromServer();
             const menu = worldMenuData();
@@ -1158,6 +1198,19 @@ async function handleMenuSelection(data) {
             $(spec[1]).val(actualModel).trigger('change');
             context.saveSettingsDebounced();
             text = `已切换模型：${noThinkingVariant ? NO_THINKING_VARIANT_LABEL : actualModel}`;
+        } else if (data.kind === 'presets') {
+            const manager = getPresetManager();
+            if (!manager) throw new Error(`当前接口 ${context.mainApi || '未知'} 没有可用的预设管理器`);
+            const name = String(data.value || '').trim();
+            const available = presetMenuItems().items.some(item => item.value === name);
+            if (!available) throw new Error('预设已经不在当前可用列表中');
+            const value = manager.findPreset(name);
+            if (value === undefined || value === null) throw new Error('无法读取所选预设');
+            manager.selectPreset(value);
+            await new Promise(resolve => setTimeout(resolve, 350));
+            const selected = currentPresetName();
+            if (selected !== name) throw new Error(`预设切换校验失败（当前：${selected || '未选择'}）`);
+            text = `已切换预设：${selected}`;
         } else if (data.kind === 'worlds') {
             const result = await applyWorldSelection(data.value);
             text = result.text;

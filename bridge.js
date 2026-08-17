@@ -1123,9 +1123,12 @@ function mainMenuMarkup() {
             ],
             [
                 { text: '🧠 选择模型', callback_data: 'act:models' },
-                { text: '✨ 新建对话', callback_data: 'act:new' },
+                { text: '🎛️ 选择预设', callback_data: 'act:presets' },
             ],
-            [{ text: '📚 选择世界书', callback_data: 'act:worlds' }],
+            [
+                { text: '✨ 新建对话', callback_data: 'act:new' },
+                { text: '📚 选择世界书', callback_data: 'act:worlds' },
+            ],
             [
                 { text: '🎬 自动跑剧情', callback_data: 'act:auto' },
                 { text: '📖 回复显示', callback_data: 'act:stream' },
@@ -1876,7 +1879,7 @@ wss.on('connection', socket => {
                     : '未启用';
                 const autoText = autoSession ? `\n自动剧情：${autoSession.status}（${autoSession.roundsCompleted}/${autoSession.settings.rounds} 轮）` : '';
                 const displayText = streamingRepliesEnabled() ? '流式显示' : '稳定显示';
-                const statusText = `酒馆已连接\n角色：${data.character}\n对话：${data.chat}\n模型：${data.model}\n世界书：${worlds}\n接口：${data.source}\n消息数：${data.chatLength}\n状态：${data.busy ? '生成中' : '空闲'}\n回复显示：${displayText}${autoText}`;
+                const statusText = `酒馆已连接\n角色：${data.character}\n对话：${data.chat}\n模型：${data.model}\n预设：${data.preset || '未选择'}\n世界书：${worlds}\n接口：${data.source}\n消息数：${data.chatLength}\n状态：${data.busy ? '生成中' : '空闲'}\n回复显示：${displayText}${autoText}`;
                 await sendPlain(data.chatId, statusText).catch(error => log(`status reply failed: ${error.message}`));
             }
             return;
@@ -2373,7 +2376,7 @@ bot.on('callback_query', async query => {
         await bot.answerCallbackQuery(callbackId).catch(() => {});
         if (action === 'menu') {
             await sendMainMenu(chatId);
-        } else if (['characters', 'chats', 'models', 'worlds'].includes(action)) {
+        } else if (['characters', 'chats', 'models', 'presets', 'worlds'].includes(action)) {
             await requestMenu(action, chatId);
         } else if (action === 'auto') {
             await sendAutoMenu(chatId);
