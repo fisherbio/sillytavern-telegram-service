@@ -83,4 +83,24 @@ if (reloadCount !== reloadsBefore + 1 || restored.chat.length !== 52) {
     throw new Error('Valid persisted conversation was not reloaded from the server before generation');
 }
 
-console.log('conversation_recovery_tests=8');
+context.characterId = 0;
+context.chatId = '新对话';
+context.chat = [];
+localStorage.setItem(CONVERSATION_STORAGE_KEY, JSON.stringify({
+    characterIndex: 0,
+    characterName: '角色甲',
+    characterAvatar: 'a.png',
+    chatName: '新对话',
+    allowUnsaved: true,
+}));
+const reloadsBeforeEmptyChat = reloadCount;
+const opensBeforeEmptyChat = opened.length;
+restored = await syncCurrentChatFromServer();
+if (restored.characterId !== 0 || restored.chatId !== '新对话' || restored.chat.length !== 0) {
+    throw new Error('New unsaved chat was not accepted before its first message');
+}
+if (reloadCount !== reloadsBeforeEmptyChat || opened.length !== opensBeforeEmptyChat) {
+    throw new Error('New unsaved chat incorrectly triggered persisted conversation recovery');
+}
+
+console.log('conversation_recovery_tests=11');

@@ -515,7 +515,10 @@ async function syncCurrentChatFromServer() {
         const rememberedCurrent = remembered
             && resolveRememberedCharacterIndex(context, remembered) === currentCharacterIndex
             && normalizeChatName(remembered.chatName) === currentChatName;
-        if (rememberedCurrent && remembered.allowUnsaved && Array.isArray(context.chat) && context.chat.length > 0) {
+        // A chat created through Telegram is intentionally empty until its first
+        // user message. Matching the remembered character/chat is sufficient to
+        // keep that unsaved chat active instead of restoring an older dialog.
+        if (rememberedCurrent && remembered.allowUnsaved && Array.isArray(context.chat)) {
             return context;
         }
         const chats = await getPastCharacterChats(currentCharacterIndex);
