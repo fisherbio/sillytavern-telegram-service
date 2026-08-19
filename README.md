@@ -43,12 +43,12 @@
 
 ## 新 Mac 一条命令部署
 
-前提：新 Mac 已登录你的 GitHub 账号并配置好访问 Private Repo 的 SSH Key；你还需要从 BotFather 取得 Telegram Bot Token。
+前提：你需要从 BotFather 取得 Telegram Bot Token。公开仓库无需登录 GitHub 或配置 SSH Key。
 
 打开“终端”，整行复制并执行：
 
 ```bash
-if [ -d "$HOME/sillytavern-telegram-service/.git" ]; then git -C "$HOME/sillytavern-telegram-service" pull --ff-only; else git clone git@github.com:fisherbio/sillytavern-telegram-service.git "$HOME/sillytavern-telegram-service"; fi && "$HOME/sillytavern-telegram-service/install.sh"
+if [ -d "$HOME/sillytavern-telegram-service/.git" ]; then git -C "$HOME/sillytavern-telegram-service" pull --ff-only; else git clone https://github.com/fisherbio/sillytavern-telegram-service.git "$HOME/sillytavern-telegram-service"; fi && "$HOME/sillytavern-telegram-service/install.sh"
 ```
 
 脚本会自动完成：
@@ -119,3 +119,9 @@ node test-preset-selection.mjs browser-index.js bridge.js
 - `/history`、`/undo`、`/new`、`/clear`
 - `/clearall`：二次确认后彻底删除与当前机器人的全部 Telegram 私聊历史
 - `/wake`、`/stop`、`/status`
+
+## 上游项目与许可证
+
+本项目是 [SillyTavern-Telegram-Connector](https://github.com/qiqi20020612/SillyTavern-Telegram-Connector) 的修改版本，保留上游项目署名，并在其 GPL-3.0 许可条款下继续发布。
+
+本仓库使用 [GNU General Public License v3.0](LICENSE)。分发修改版本时也必须提供对应源代码，并继续使用 GPL-3.0 兼容条款。

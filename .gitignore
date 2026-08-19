@@ -8,6 +8,19 @@ mtproto-config.json
 *.key
 *.pem
 *.log
+.env
+.env.*
+!.env.example
+secrets.json
+*.sqlite
+*.sqlite-*
+*.db
+*.db-*
+*.jsonl
+id_rsa*
+id_ed25519*
+*.p12
+*.pfx
 
 # Dependencies and generated files
 node_modules/

@@ -1,8 +1,13 @@
 {
   "name": "sillytavern-telegram-personal-bridge",
   "version": "2.9.0",
-  "private": true,
   "description": "Local, single-user Telegram bridge for SillyTavern",
+  "license": "GPL-3.0-only",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/fisherbio/sillytavern-telegram-service.git"
+  },
+  "homepage": "https://github.com/fisherbio/sillytavern-telegram-service",
   "main": "bridge.js",
   "scripts": {
     "start": "node bridge.js"

@@ -5,7 +5,7 @@
   "optional": [],
   "js": "index.js",
   "css": "style.css",
-  "author": "Local hardened adaptation",
+  "author": "fisherbio contributors; based on qiqi20020612/SillyTavern-Telegram-Connector",
   "version": "2.9.0",
-  "homePage": "https://github.com/qiqi20020612/SillyTavern-Telegram-Connector"
+  "homePage": "https://github.com/fisherbio/sillytavern-telegram-service"
 }
